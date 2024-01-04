@@ -23,7 +23,7 @@ The currency i put in the bot is British Pounds (£). You can change it by editi
 
 PREFIX is $ by default
 
-`bitcoin_prices` - Shows the current bitcoin price
+`bitcoin_price` - Shows the current bitcoin price
 
 `bitcoin_bal` - Shows the user their current bitcoin balance
 
