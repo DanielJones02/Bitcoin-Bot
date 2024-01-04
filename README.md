@@ -40,3 +40,5 @@ PREFIX is $ by default
 # Common Bugs
 
 1. `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` - Just delete bitcoin_price_history.json
+
+2. Random Crashes. I am well aware of this, I'm not sure if its limited CPU power of just the script bugging out. I'm trying to fix it.
