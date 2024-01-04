@@ -1,0 +1,11 @@
+{
+    "bot_token": "MTA3NTQzNDQ2MzIxNzA2NjAxNA.GpEa3n.mQgMnXvgbICcH7Fr7rb2KLjN-9Ev_oXvSU4XZA",
+    "BOT_PREFIX": "$",
+    "update_channel": 1192446861668270101,
+    "update_intervals": 30,
+    "bitcoin_starting_price": 30000,
+    "user_balance_save_file": "user_data.json",
+    "bitcoin_data_save_file": "bitcoin_data.json",
+    "bitcoin_old_prices": "bitcoin_price_history.json"
+    
+}
