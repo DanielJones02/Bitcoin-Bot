@@ -65,9 +65,9 @@ def load_bitcoin_data():
     # If there's any history, set the latest price from it
     if bitcoin_price_history:
         # Set the current price to the last price in the history
-        bitcoin_price = bitcoin_price_history[-1][1]
+        bitcoin_price = bitcoin_price_history[-1]
     else:
-        pass # bitcoin_price default value is already defined
+        pass  # bitcoin_price default value is already defined
 
 def load_user_data():
     # Load user data from the file
@@ -85,13 +85,13 @@ load_bitcoin_data()
 async def update_bitcoin_price():
     global bitcoin_price, bitcoin_price_history
     channel = bot.get_channel(update_channel)
+
     while True:
         try:
             print("Prices posting...")
             # Store the previous Bitcoin price
             old_price = bitcoin_price
 
-            increase_price = random.choice([True, False])
             # Determine whether to increase or decrease the price
             increase_price = random.choice([True, True, False])
 
@@ -102,23 +102,20 @@ async def update_bitcoin_price():
                 # Decrease the price by 500-600%
                 change_percent = random.uniform(-20, -21)
 
-            # Update price
-            bitcoin_price *= (1 + change_percent / 100)
-
-            # Clamp the price within the specified range
-            bitcoin_price = round(max(20000, min(bitcoin_price, 60000)))
-
-            timestamp = datetime.datetime.now()
-            bitcoin_price_history.append((timestamp.isoformat(), bitcoin_price))
+            new_price = round(max(20000, min(bitcoin_price * (1 + change_percent / 100), 60000)))
+            bitcoin_price = new_price  # Update the global bitcoin_price
+            bitcoin_price_history.append(new_price)
 
             # Save Bitcoin price history to file
             with open(bitcoin_price_history_file, 'w') as file:
                 json.dump(bitcoin_price_history, file, indent=4)
 
+            # Generate timestamps for plotting
+            times = [datetime.datetime.now() - datetime.timedelta(seconds=i * update_intervals) for i in range(len(bitcoin_price_history))]
+
             # Generate the entire graph
             plt.figure()
-            times, prices = zip(*bitcoin_price_history)
-            plt.plot(times, prices, '-o')
+            plt.plot(times, bitcoin_price_history, '-o')
             plt.title("Bitcoin Price History")
             plt.xlabel("Time")
             plt.ylabel("Price (pounds)")
@@ -130,11 +127,11 @@ async def update_bitcoin_price():
             buf.seek(0)
             plt.close()
 
-            price_change = bitcoin_price - old_price
+            price_change = new_price - old_price
             change_direction = "increased" if price_change > 0 else "decreased"
-            message = f"Bitcoin has {change_direction} by {abs(price_change)} pounds. The new Bitcoin value is {bitcoin_price} pounds!"
+            message = f"Bitcoin has {change_direction} by {abs(price_change)} pounds. The new Bitcoin value is {new_price} pounds!"
 
-                # Send message and graph to the specific channel
+            # Send message to the specific channel
             await channel.send(message, file=discord.File(buf, filename='bitcoin_price.png'))
 
             # Wait for 30 seconds before next update
@@ -142,7 +139,6 @@ async def update_bitcoin_price():
 
         except Exception as e:
             print(f"An error occurred in update_bitcoin_price: {e}")
-
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -161,7 +157,7 @@ async def on_command_error(ctx, error):
 @bot.event
 async def on_ready():
     print(Fore.LIGHTGREEN_EX, f"{t}{Fore.LIGHTGREEN_EX} | Ready and online - {bot.user.display_name}\n", Fore.RESET)
-    await bot.change_presence(activity=discord.Game('discord | $help'))
+    await bot.change_presence(activity=discord.Game(f'Bitcoin | {PREFIX}help'))
 
     try:
         guild_count = 0
@@ -220,12 +216,19 @@ def get_bitcoin_price():
         with open(bitcoin_price_history_file, 'r') as file:
             bitcoin_price_history = json.load(file)
             if bitcoin_price_history:
-                # Get the latest price
-                return float(bitcoin_price_history[-1])  # Assuming it's a list of floats
+                # Assuming each entry is a dictionary with a 'price' key
+                latest_entry = bitcoin_price_history[-1]
+                latest_price = latest_entry.get('price')
+                return latest_price
             else:
-                return bitcoin_price
-    except (FileNotFoundError, json.decoder.JSONDecodeError):
-        return bitcoin_price 
+                return None
+    except FileNotFoundError:
+        print("Bitcoin price history file not found.")
+        return None
+    except json.decoder.JSONDecodeError as e:
+        print(f"JSON Decode Error: {e}")
+        return None
+
 
 
 # Function to get user's Bitcoin balance
@@ -255,113 +258,233 @@ def save_user_bitcoin_data():
 
 def setup_trading(bot):
 
-    @bot.command(name='bitcoin_prices')
-    async def bitcoin_prices(ctx):
-        # Load Bitcoin price history from the file
+    @bot.command(name='bitcoin_price')
+    async def bitcoin_price(ctx):
         try:
-            with open('bitcoin_price_history.json', 'r') as file:
+            # Load the latest Bitcoin price
+            with open(bitcoin_price_history_file, 'r') as file:
                 bitcoin_price_history = json.load(file)
-                print("Price history loaded successfully.")  # Debugging output
+                if bitcoin_price_history:
+                    # Assuming the latest price is at the end of the list
+                    latest_price = bitcoin_price_history[-1]
+                    embed = discord.Embed(title="Bitcoin Price", description=f"The latest Bitcoin price is {latest_price} pounds.", color=discord.Colour.green())
+                    await ctx.send(embed=embed)
+                else:
+                    embed = discord.Embed(title="Bitcoin Price", description="Bitcoin price history is empty.", color=discord.Colour.red())
+                    await ctx.send(embed=embed)
         except FileNotFoundError:
-            print("File not found. Using default price.")  # Debugging output
-            bitcoin_price_history = []
+            embed = discord.Embed(title="Bitcoin Price", description="Bitcoin price history file not found.", color=discord.Colour.red())
+            await ctx.send(embed=embed)
         except json.decoder.JSONDecodeError as e:
-            print(f"JSON Decode Error: {e}")  # Debugging output
-            bitcoin_price_history = []
-
-        # Get the latest Bitcoin price from the history using the get_bitcoin_price function
-        latest_price = get_bitcoin_price()
-
-        # Check if there is data in bitcoin_price_history
-        if not bitcoin_price_history:
-            embed = discord.Embed(title="Bitcoin Prices", description=f"Bitcoin price is {bitcoin_price} pounds.", color=discord.Colour.blue())
+            embed = discord.Embed(title="Bitcoin Price", description=f"JSON Decode Error: {e}", color=discord.Colour.red())
             await ctx.send(embed=embed)
-            return
-
-        # Send the latest Bitcoin price to the user
-        try:
-            embed = discord.Embed(title="Bitcoin Prices", description=f"Current Bitcoin price is {latest_price} pounds.", color=discord.Colour.blue())
-            await ctx.send(embed=embed)
-        except Exception as e:
-            print(f"Error in sending latest price: {e}")  # Debugging output
 
 
     @bot.command(name='buy_bitcoin')
     async def buy_bitcoin(ctx, amount: float):
+        if amount <= 0:
+            embed = discord.Embed(
+                title="Error",
+                description="Please enter a valid amount of Bitcoin to buy.",
+                color=discord.Colour.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
         try:
+            # Load the latest Bitcoin price
             with open(bitcoin_price_history_file, 'r') as file:
                 bitcoin_price_history = json.load(file)
-            bitcoin_price = bitcoin_price_history[-1] # Assuming the latest price is at the end
-        except (FileNotFoundError, json.decoder.JSONDecodeError, IndexError):
-            pass # bitcoin price is already defined
+                if not bitcoin_price_history:
+                    embed = discord.Embed(
+                        title="Error",
+                        description="Unable to fetch the latest Bitcoin price.",
+                        color=discord.Colour.red()
+                    )
+                    await ctx.send(embed=embed)
+                    return
+                latest_price = bitcoin_price_history[-1]
 
-        # Calculate the cost of buying the specified amount of Bitcoin
-        cost = amount * bitcoin_price
+            # Calculate the total cost
+            total_cost = latest_price * amount
 
-        # Get the user's balance and Bitcoin balance
-        user_balance = get_user_balance(ctx.author.id)
+            # Get the user's balance
+            user_id = str(ctx.author.id)
+            user_balance = get_user_balance(user_id)
 
-        # Check if the user has enough balance to buy
-        if user_balance >= cost:
-            # Update user balance and Bitcoin balance
-            update_user_balance(ctx.author.id, -cost)
-            update_user_bitcoin(ctx.author.id, amount)
+            # Check if the user has enough balance
+            if user_balance < total_cost:
+                embed = discord.Embed(
+                    title="Error",
+                    description=f"You do not have enough balance to buy {amount} Bitcoin.",
+                    color=discord.Colour.red()
+                )
+                await ctx.send(embed=embed)
+            else:
+                # Update the user's balance
+                update_user_balance(user_id, -total_cost)
 
-            embed = discord.Embed(title="Bitcoin Purchased", 
-                                  description=f"You've bought {amount:.2f} Bitcoin for {cost:.2f} pounds. The new Bitcoin value is {bitcoin_price:.2f} pounds.",
-                                  color=discord.Colour.green())
+                # Get and update user's Bitcoin balance
+                user_bitcoin_balance = get_user_bitcoin(user_id)
+                update_user_bitcoin(user_id, user_bitcoin_balance + amount)
+
+                embed = discord.Embed(
+                    title="Bitcoin Purchase",
+                    description=f"You have successfully purchased {amount} Bitcoin for {total_cost}.",
+                    color=discord.Colour.green()
+                )
+                await ctx.send(embed=embed)
+
+        except FileNotFoundError:
+            embed = discord.Embed(
+                title="Error",
+                description="Bitcoin data file not found.",
+                color=discord.Colour.red()
+            )
             await ctx.send(embed=embed)
-        else:
-            embed = discord.Embed(title="Error", 
-                                  description="You don't have enough balance to buy this amount of Bitcoin.",
-                                  color=discord.Colour.red())
+        except json.decoder.JSONDecodeError as e:
+            embed = discord.Embed(
+                title="Error",
+                description=f"An error occurred: {e}",
+                color=discord.Colour.red()
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            embed = discord.Embed(
+                title="Error",
+                description=f"An error occurred: {e}",
+                color=discord.Colour.red()
+            )
             await ctx.send(embed=embed)
 
-    
+
     @bot.command(name='sell_bitcoin', help='Sell your Bitcoin')
     async def sell_bitcoin(ctx, amount_to_sell: float):
-        user_id = str(ctx.author.id)
-        current_bitcoin_price = get_bitcoin_price()
-        user_bitcoin = get_user_bitcoin(user_id)
-
-        if user_bitcoin >= amount_to_sell:
-            # Calculate the money to add to the user's balance
-            money_to_add = amount_to_sell * current_bitcoin_price
-
-            # Update user's bitcoin and money balance
-            update_user_bitcoin(user_id, user_bitcoin - amount_to_sell)
-            update_user_balance(user_id, money_to_add)
-            save_user_data()
-
-            embed = discord.Embed(title="Bitcoin Sold", 
-                                  description=f"You've successfully sold {amount_to_sell} Bitcoin for {money_to_add:.2f} pounds.",
-                                  color=discord.Colour.green())
+        if amount_to_sell <= 0:
+            embed = discord.Embed(
+                title="Error",
+                description="Please enter a valid amount of Bitcoin to sell.",
+                color=discord.Colour.red()
+            )
             await ctx.send(embed=embed)
-        else:
-            embed = discord.Embed(title="Error", 
-                                  description="You don't have enough Bitcoin to sell.",
-                                  color=discord.Colour.red())
+            return
+
+        try:
+            # Load the latest Bitcoin price
+            with open(bitcoin_price_history_file, 'r') as file:
+                bitcoin_price_history = json.load(file)
+                if not bitcoin_price_history:
+                    embed = discord.Embed(
+                        title="Error",
+                        description="Unable to fetch the latest Bitcoin price.",
+                        color=discord.Colour.red()
+                    )
+                    await ctx.send(embed=embed)
+                    return
+                current_bitcoin_price = bitcoin_price_history[-1]
+
+            # Get the user's Bitcoin balance
+            user_id = str(ctx.author.id)
+            user_bitcoin_balance = get_user_bitcoin(user_id)
+
+            # Check if the user has enough Bitcoin to sell
+            if user_bitcoin_balance < amount_to_sell:
+                embed = discord.Embed(
+                    title="Error",
+                    description=f"You do not have enough Bitcoin to sell {amount_to_sell}.",
+                    color=discord.Colour.red()
+                )
+                await ctx.send(embed=embed)
+            else:
+                # Calculate the money to add to the user's balance
+                money_to_add = amount_to_sell * current_bitcoin_price
+
+                # Update user's bitcoin and money balance
+                update_user_bitcoin(user_id, user_bitcoin_balance - amount_to_sell)
+                update_user_balance(user_id, money_to_add)
+                save_user_data()
+
+                embed = discord.Embed(
+                    title="Bitcoin Sold",
+                    description=f"You've successfully sold {amount_to_sell} Bitcoin for {money_to_add} pounds.",
+                    color=discord.Colour.green()
+                )
+                await ctx.send(embed=embed)
+
+        except FileNotFoundError:
+            embed = discord.Embed(
+                title="Error",
+                description="Bitcoin data file not found.",
+                color=discord.Colour.red()
+            )
+            await ctx.send(embed=embed)
+        except json.decoder.JSONDecodeError as e:
+            embed = discord.Embed(
+                title="Error",
+                description=f"An error occurred: {e}",
+                color=discord.Colour.red()
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            embed = discord.Embed(
+                title="Error",
+                description=f"An error occurred: {e}",
+                color=discord.Colour.red()
+            )
             await ctx.send(embed=embed)
 
-    
 
-    @bot.command(name='bitcoin_bal', help='Check your Bitcoin balance')
+    @bot.command(name='bitcoin_bal', help='Check your Bitcoin balance and its current worth')
     async def bitcoin_bal(ctx):
         user_id = str(ctx.author.id)
-        user_bitcoin = get_user_bitcoin(user_id)
-        current_bitcoin_price = get_bitcoin_price()
 
-        bitcoin_value = user_bitcoin * current_bitcoin_price
+        try:
+            # Load the latest Bitcoin price
+            with open(bitcoin_price_history_file, 'r') as file:
+                bitcoin_price_history = json.load(file)
+                if not bitcoin_price_history:
+                    embed = discord.Embed(
+                        title="Error",
+                        description="Unable to fetch the latest Bitcoin price.",
+                        color=discord.Colour.red()
+                    )
+                    await ctx.send(embed=embed)
+                    return
+                current_bitcoin_price = bitcoin_price_history[-1]
 
-        embed = discord.Embed(
-            title="Bitcoin Balance",
-            description=f"You currently own {user_bitcoin} Bitcoin.",
-            color=discord.Colour.blue()
-        )
-        embed.add_field(name="Current Bitcoin Price", value=f"{current_bitcoin_price:.2f} pounds", inline=False)
-        embed.add_field(name="Total Value", value=f"{bitcoin_value:.2f} pounds", inline=False)
+            # Get the user's Bitcoin balance
+            user_bitcoin_balance = get_user_bitcoin(user_id)
+            current_value = user_bitcoin_balance * current_bitcoin_price
 
-        await ctx.send(embed=embed)
+            embed = discord.Embed(
+                title="Bitcoin Balance",
+                description=f"You have {user_bitcoin_balance} BTC.\n"
+                            f"Current value: {current_value} pounds.",
+                color=discord.Colour.blue()
+            )
+            await ctx.send(embed=embed)
+
+        except FileNotFoundError:
+            embed = discord.Embed(
+                title="Error",
+                description="Bitcoin data file not found.",
+                color=discord.Colour.red()
+            )
+            await ctx.send(embed=embed)
+        except json.decoder.JSONDecodeError as e:
+            embed = discord.Embed(
+                title="Error",
+                description=f"An error occurred: {e}",
+                color=discord.Colour.red()
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            embed = discord.Embed(
+                title="Error",
+                description=f"An error occurred: {e}",
+                color=discord.Colour.red()
+            )
+            await ctx.send(embed=embed)
     
     @bot.command(name='help')
     async def custom_help(ctx):
@@ -375,8 +498,10 @@ def setup_trading(bot):
         embed.add_field(name="help", value="Shows this message.", inline=True)
         embed.add_field(name="buy_bitcoin <amount>", value="Buy bitcoin", inline=False)
         embed.add_field(name="sell_bitcoin <amount>", value="Sell bitcoin", inline=False)
-        embed.add_field(name="bitcoin_prices", value="Shows the current bitcoin price", inline=False)
+        embed.add_field(name="bitcoin_price", value="Shows the current bitcoin price", inline=False)
         embed.add_field(name="bitcoin_bal", value="Check your bitcoin balance", inline=False)
+        embed.add_field(name="ba;", value="Shows your balance", inline=False)
+        embed.add_field(name="baltop", value="Shows the top 10 richest players", inline=False)
         #embed.add_field(name="", value="", inline=False)
 
         await ctx.send(embed=embed)
@@ -384,6 +509,7 @@ def setup_trading(bot):
     
 
     @bot.command(name='give')
+    @commands.has_permissions(administrator=True)
     async def give(ctx, target: commands.MemberConverter, amount: int):
         update_user_balance(target.id, amount)
         embed = discord.Embed(
@@ -397,6 +523,7 @@ def setup_trading(bot):
 
         message_log(ctx, "give", f"{target} | {amount}")
     
+
     @bot.command(name='baltop', aliases=['topbalance', 'richest', 'topbal', 'balancetop'])
     async def baltop(ctx):
         # Check if the file exists and is not empty
@@ -413,21 +540,20 @@ def setup_trading(bot):
             return
 
         # Extracting user ID and balance, ignoring other keys
-        balances = {user_id: data for user_id, data in user_balances.items() if user_id.isdigit() and isinstance(data, int)}
+        balances = {user_id: balance for user_id, balance in user_balances.items() if user_id.isdigit() and isinstance(balance, int)}
 
         # Sorting the dictionary by balance and getting top 10
         top_balances = dict(sorted(balances.items(), key=lambda item: item[1], reverse=True)[:10])
 
         # Creating an embedded message with orange color
         embed = discord.Embed(
-            title="Top Balances",
+            title="Top 10 Balances",
             description="\n".join([f"<@{user_id}>: {balance}" for user_id, balance in top_balances.items()]),
             color=discord.Color.orange()
         )
 
         # Sending the leaderboard
         await ctx.send(embed=embed)
-
 
 
     @bot.command(name='balance', help="Check your balance", aliases=['bal'])
