@@ -36,3 +36,7 @@ PREFIX is $ by default
 `baltop` - Check for the top 10 richest users
 
 `give @user <amount>` - Give a user money (admin needed)
+
+# Common Bugs
+
+1. `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` - Just delete bitcoin_price_history.json
