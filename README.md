@@ -30,3 +30,9 @@ PREFIX is $ by default
 `bitcoin_buy <amount>` - Buy bitcoin
 
 `bitcoin_sell <amount>` - Sell bitcoin
+
+`bal` - Check your current balance
+
+`baltop` - Check for the top 10 richest users
+
+`give @user <amount>` - Give a user money (admin needed)
