@@ -1,7 +1,7 @@
 {
-    "bot_token": "MTA3NTQzNDQ2MzIxNzA2NjAxNA.GpEa3n.mQgMnXvgbICcH7Fr7rb2KLjN-9Ev_oXvSU4XZA",
+    "bot_token": "YOUR_BOT_TOKEN_HERE",
     "BOT_PREFIX": "$",
-    "update_channel": 1192446861668270101,
+    "update_channel": 123456789,
     "update_intervals": 30,
     "bitcoin_starting_price": 30000,
     "user_balance_save_file": "user_data.json",
