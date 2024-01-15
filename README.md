@@ -19,6 +19,8 @@ The currency i put in the bot is British Pounds (£). You can change it by editi
 
 3. Now let the bot run. Be aware. This is a very resource intensive bot, I didn't add any more commands or any more background tasks, because from my experience the code is very unstable and causes the bot to crash after some time.
 
+# DISCLAIMER! THISE IS NOT FOR PAPER TRADING. THIS HAD NO PAPER TRADING LOGIC BEHIND IT (essentialy you are gambling)
+
 # COMMAND LIST
 
 PREFIX is $ by default
